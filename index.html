@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Personal Hub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- 모바일 터치 드래그 앤 드롭 지원 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -83,7 +85,8 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, transform 0.2s, opacity 0.2s;
+      user-select: none;
     }
     .card-header {
       display: flex;
@@ -100,6 +103,16 @@
       flex-grow: 1;
       overflow: hidden;
     }
+    .drag-handle {
+      color: var(--text-muted);
+      cursor: grab;
+      font-size: 0.95rem;
+      display: none;
+      padding-right: 0.2rem;
+    }
+    body.edit-mode .drag-handle { display: inline-block; }
+    .drag-handle:active { cursor: grabbing; }
+
     .card-title {
       font-size: 0.9rem;
       font-weight: 600;
@@ -124,23 +137,30 @@
       padding: 0.15rem 0.45rem;
       border-radius: 10px;
     }
-    .edit-cat-btn, .del-cat-btn, .move-cat-btn {
+    .edit-cat-btn, .del-cat-btn {
       cursor: pointer;
       font-size: 0.85rem;
       padding: 0.2rem 0.35rem;
       display: none;
       border-radius: 4px;
     }
-    .move-cat-btn { color: var(--text-muted); }
-    .move-cat-btn:hover { color: var(--accent); background: rgba(255, 255, 255, 0.05); }
     .edit-cat-btn { color: var(--text-muted); }
     .edit-cat-btn:hover { color: var(--accent); }
     .del-cat-btn { color: var(--danger); }
     .del-cat-btn:hover { opacity: 0.8; }
     
     body.edit-mode .edit-cat-btn,
-    body.edit-mode .del-cat-btn,
-    body.edit-mode .move-cat-btn { display: inline-block; }
+    body.edit-mode .del-cat-btn { display: inline-block; }
+
+    /* Drag & Drop Visual State */
+    .sortable-ghost {
+      opacity: 0.35;
+      border: 2px dashed var(--accent) !important;
+      transform: scale(0.98);
+    }
+    .sortable-chosen {
+      background: rgba(88, 166, 255, 0.08) !important;
+    }
 
     /* Link Items */
     .link-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
@@ -325,9 +345,10 @@
       }
     ];
 
-    const STORAGE_KEY = 'my_hub_data_v5';
+    const STORAGE_KEY = 'my_hub_data_v6';
     let currentData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || initialTabsData;
     let isEditMode = false;
+    let sortableInstance = null;
 
     function saveAndRender() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
@@ -341,6 +362,7 @@
       currentData.forEach((cat, catIdx) => {
         const card = document.createElement('div');
         card.className = 'card';
+        card.setAttribute('data-idx', catIdx);
 
         let listHtml = cat.items.map((item, itemIdx) => `
           <li class="link-item">
@@ -356,6 +378,7 @@
           <div>
             <div class="card-header">
               <div class="card-title-wrap">
+                <i class="fa-solid fa-grip-vertical drag-handle" title="드래그하여 이동"></i>
                 <div class="card-title">
                   <i class="fa-solid ${cat.icon || 'fa-folder'}"></i>
                   <span id="cat-title-${catIdx}">${cat.category}</span>
@@ -364,8 +387,6 @@
               </div>
               <div class="header-actions">
                 <span class="badge">${cat.items.length}</span>
-                <i class="fa-solid fa-chevron-left move-cat-btn" title="왼쪽/앞으로 이동" onclick="moveCategory(${catIdx}, -1)"></i>
-                <i class="fa-solid fa-chevron-right move-cat-btn" title="오른쪽/뒤로 이동" onclick="moveCategory(${catIdx}, 1)"></i>
                 <i class="fa-solid fa-trash del-cat-btn" title="그룹 전체 삭제" onclick="deleteCategory(${catIdx})"></i>
               </div>
             </div>
@@ -379,18 +400,32 @@
         `;
         container.appendChild(card);
       });
+
+      initSortable();
     }
 
-    /* 그룹 순서 이동 함수 */
-    function moveCategory(catIdx, direction) {
-      const targetIdx = catIdx + direction;
-      if (targetIdx < 0 || targetIdx >= currentData.length) return;
-      
-      const temp = currentData[catIdx];
-      currentData[catIdx] = currentData[targetIdx];
-      currentData[targetIdx] = temp;
-      
-      saveAndRender();
+    /* SortableJS 드래그 앤 드롭 초기화 */
+    function initSortable() {
+      const container = document.getElementById('categoryGrid');
+      if (sortableInstance) {
+        sortableInstance.destroy();
+      }
+
+      sortableInstance = new Sortable(container, {
+        animation: 200,
+        handle: '.card-header', /* 카드 상단 헤더 영역을 잡고 드래그 */
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        disabled: !isEditMode, /* 편집 모드일 때만 드래그 활성화 */
+        delay: 150, /* 모바일 스크롤과 충돌 방지를 위해 150ms 롱터치 후 드래그 시작 */
+        delayOnTouchOnly: true,
+        onEnd: function (evt) {
+          const movedItem = currentData.splice(evt.oldIndex, 1)[0];
+          currentData.splice(evt.newIndex, 0, movedItem);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
+          renderGrid();
+        }
+      });
     }
 
     /* 그룹(카테고리) 관련 함수 */
@@ -447,6 +482,9 @@
       isEditMode = !isEditMode;
       document.body.classList.toggle('edit-mode', isEditMode);
       document.getElementById('editBtn').classList.toggle('active', isEditMode);
+      if (sortableInstance) {
+        sortableInstance.option('disabled', !isEditMode);
+      }
     }
 
     function exportData() {
