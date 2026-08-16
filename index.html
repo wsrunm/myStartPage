@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hub</title>
+  <title>Personal Hub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root {
@@ -25,9 +25,9 @@
       justify-content: center;
       padding: 2rem 1.25rem;
     }
-    .container { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 1.25rem; }
+    .container { width: 100%; max-width: 1080px; display: flex; flex-direction: column; gap: 1.25rem; }
 
-    /* Clock */
+    /* Header & Clock */
     .header { text-align: center; }
     .clock { font-size: 2.6rem; font-weight: 700; color: var(--text-bright); }
     .date { color: var(--text-muted); font-size: 0.9rem; margin-top: 2px; }
@@ -68,33 +68,51 @@
     .btn:hover, .btn.active { color: var(--accent); border-color: var(--accent); }
 
     /* Grid & Cards */
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem;
+    }
     .card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 16px;
       padding: 1.25rem;
       backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.8rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--card-border);
     }
     .card-title {
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.03em;
       color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
-    .link-list { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+    .badge {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      font-size: 0.75rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 10px;
+    }
+    .link-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
     .link-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0.55rem 0.75rem;
+      padding: 0.5rem 0.65rem;
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.02);
       transition: all 0.2s;
@@ -103,10 +121,10 @@
     .link-item a {
       color: var(--text);
       text-decoration: none;
-      font-size: 0.92rem;
+      font-size: 0.88rem;
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.5rem;
       flex-grow: 1;
       overflow: hidden;
       white-space: nowrap;
@@ -123,7 +141,7 @@
     .del-btn:hover { color: var(--danger); }
     body.edit-mode .del-btn { display: inline-block; }
 
-    /* Add Forms */
+    /* Add Form */
     .add-form {
       margin-top: 0.8rem;
       display: flex;
@@ -146,7 +164,7 @@
       color: #000;
       font-weight: bold;
       border-radius: 6px;
-      padding: 0 0.6rem;
+      padding: 0 0.65rem;
       cursor: pointer;
     }
   </style>
@@ -155,7 +173,7 @@
   <div class="container">
     <div class="header">
       <div class="clock" id="clock">00:00</div>
-      <div class="date" id="date">Loading...</div>
+      <div class="date" id="date">로딩 중...</div>
     </div>
 
     <form class="search-box" action="https://www.google.com/search" method="get">
@@ -167,44 +185,97 @@
       <button class="btn" id="editBtn" onclick="toggleEditMode()"><i class="fa-solid fa-pen-to-square"></i> 편집</button>
       <button class="btn" onclick="exportData()"><i class="fa-solid fa-download"></i> 백업</button>
       <button class="btn" onclick="importData()"><i class="fa-solid fa-upload"></i> 복원</button>
+      <button class="btn" onclick="resetToInitial()"><i class="fa-solid fa-rotate-left"></i> 초기화</button>
     </div>
 
     <div class="grid" id="categoryGrid"></div>
   </div>
 
   <script>
-    // 초기 기본 데이터 구조
-    const defaultData = [
+    const initialTabsData = [
       {
-        category: "Portals & Media",
+        category: "마켓 & 투자 분석",
+        icon: "fa-chart-line",
         items: [
-          { name: "Naver", url: "https://www.naver.com" },
-          { name: "YouTube", url: "https://www.youtube.com" },
-          { name: "Google News", url: "https://news.google.com" }
+          { name: "Google Finance (VOO/SOXL/QQQM/TQQQ)", url: "https://www.google.com/finance/beta/quote/VOO:NYSEARCA?comparison=SOXL%3ANYSEARCA%2CQQQM%3ANASDAQ%2CTQQQ%3ANASDAQ&type=line&window=6M" },
+          { name: "Companies Market Cap (시총 순위)", url: "https://companiesmarketcap.com/" },
+          { name: "Kospilab Insights", url: "https://kospilab.com/insights" },
+          { name: "Whale Insight (국민연금 포트폴리오)", url: "https://whale-insight.com/nps_kr" },
+          { name: "App Economy Insights", url: "https://www.appeconomyinsights.com/" },
+          { name: "Algori-C 퀀트 백테스트", url: "https://algori-c.github.io/#/new_backtest" },
+          { name: "Easy Investing App", url: "https://easyinvesting.app/#/buy" },
+          { name: "토스증권 투자 리포트 (PDF)", url: "https://home-files.tossinvest.com/files/investment-info/ec3ea909-0379-47ec-9a70-a2d15a6bea24.pdf" },
+          { name: "네이버 프리미엄콘텐츠 (SM주식스터디)", url: "https://contents.premium.naver.com/smstockstudy/1028/contents/260731075913555si" },
+          { name: "네이버 블로그 (stock_blog 분석글)", url: "https://m.blog.naver.com/PostView.naver?blogId=stock_blog&logNo=224261045776" },
+          { name: "therich-roy 블로그: 분석 글 1", url: "https://m.blog.naver.com/therich-roy/224220977041" },
+          { name: "therich-roy 블로그: 분석 글 2", url: "https://m.blog.naver.com/PostView.naver?blogId=therich-roy&logNo=223759403891" },
+          { name: "therich-roy 블로그: 분석 글 3", url: "https://m.blog.naver.com/therich-roy/223763613016" }
         ]
       },
       {
-        category: "Dev & AI",
+        category: "개발 & 테크 도구",
+        icon: "fa-code",
         items: [
-          { name: "GitHub", url: "https://github.com" },
-          { name: "ChatGPT", url: "https://chatgpt.com" },
-          { name: "Gemini", url: "https://gemini.google.com" }
+          { name: "GitHub Actions: krx-auto-brief 실행 내역", url: "https://github.com/wsrunm/krx-auto-brief/actions/runs/24769240899/job/72471118506" },
+          { name: "인프런: 주식 자동화 바이브코딩 강의", url: "https://www.inflearn.com/course/stock-vibe-coding-ev?cid=341084" },
+          { name: "인공지능산업융합사업단 공지사항", url: "https://aikorea.go.kr/web/board/brdList.do?menu_cd=000014" },
+          { name: "HMX 반저소음 라벤더 스위치 검색", url: "https://www.google.com/search?q=hmx+%EB%B0%98%EC%A0%80%EC%86%8C%EC%9D%8C+%EB%9D%BC%EB%B2%A4%EB%8D%94" },
+          { name: "노션 모바일 앱 로그아웃 검색", url: "https://www.google.com/search?q=%EB%85%B8%EC%85%98+%EB%AA%A8%EB%B0%94%EC%9D%BC%EC%95%B1+%EB%A1%9C%EA%B7%B8%EC%95%84%EC%9B%83" }
         ]
       },
       {
-        category: "Market & Tools",
+        category: "쇼핑 & 기어",
+        icon: "fa-bag-shopping",
         items: [
-          { name: "TradingView", url: "https://www.tradingview.com" },
-          { name: "Yahoo Finance", url: "https://finance.yahoo.com" }
+          { name: "락커룸(Locker Room) 상품", url: "https://m.locker-room.co.kr/product/detail.html?product_no=23113&cate_no=25&display_group=1" },
+          { name: "아식스 코리아 (Asics)", url: "https://m.asics.co.kr/p/AKR_112530303-100" },
+          { name: "뉴발란스 슈즈위크 (Shoesweek)", url: "https://m.nbkorea.com/event/shoesweek_2026.action" },
+          { name: "뉴에라 캡 코리아 (블랙라벨)", url: "https://www.neweracapkorea.com/m/product_list.html?type=X&xcode=256" },
+          { name: "구드닷컴 (GUUD)", url: "https://www.guud.com/shop/goodsView?itemId=288233" },
+          { name: "아시모토 (Ashimoto)", url: "https://ashimoto.kr/" },
+          { name: "아시모토 상세 상품", url: "https://ashimoto.kr/product/detail.html?product_no=18" },
+          { name: "바이피젠 (Bifigen)", url: "https://bifigen.com/product/detail.html?product_no=12" },
+          { name: "아이면랩 (Eyemyun Lab)", url: "https://eyemyunlab.com/surl/P/19" },
+          { name: "휘니카 (Whinica)", url: "https://whinica.com/surl/P/12/" },
+          { name: "ZV-ZO", url: "https://zv-zo.com/ko/" },
+          { name: "스룩페이 (Parakiss18)", url: "https://shop.srookpay.com/parakiss18" }
+        ]
+      },
+      {
+        category: "블로그 & 뉴스 & 강의",
+        icon: "fa-book-open-reader",
+        items: [
+          { name: "네이버 블로그: cybermw", url: "https://m.blog.naver.com/PostList.naver?blogId=cybermw&tab=1" },
+          { name: "네이버 블로그: capzzangjj", url: "https://m.blog.naver.com/PostList.naver?blogId=capzzangjj&tab=1" },
+          { name: "네이버 블로그: wogns2605", url: "https://m.blog.naver.com/PostList.naver?blogId=wogns2605&tab=1" },
+          { name: "chamberine3 블로그: 글 1", url: "https://m.blog.naver.com/PostView.naver?blogId=chamberine3&logNo=224368546420" },
+          { name: "chamberine3 블로그: 글 2", url: "https://m.blog.naver.com/chamberine3/224228328843" },
+          { name: "아르단뉴스 (Ardent News)", url: "https://www.ardentnews.co.kr/news/articleView.html?idxno=17387" },
+          { name: "케쌤 무료 특강 (Kessam)", url: "https://kessam.com/free" },
+          { name: "GIPP 전자책 무료 강의", url: "https://ebook.gipp.co.kr/free_lec1" }
+        ]
+      },
+      {
+        category: "스마트홈 & 서비스",
+        icon: "fa-house-signal",
+        items: [
+          { name: "스마트홈 IoT 네이버 스마트스토어", url: "https://m.smartstore.naver.com/starthome-iot/category/8da36a87fbf84f0f819b1963d6993f95" },
+          { name: "민팃 (Mintit 중고폰 시세)", url: "https://app.mintit.co.kr/" },
+          { name: "KT Shop 기획전", url: "https://m.shop.kt.com:444/m/display/olhsPlan.do?plnDispNo=2811" },
+          { name: "KB국민카드 약관 문서 (PDF)", url: "https://img2.kbcard.com/obj/card/download/A0017_stpul_20250410.pdf" },
+          { name: "어바웃리페어 블로그", url: "https://m.blog.naver.com/aboutrepair/224242824409" },
+          { name: "네이버 카페 (wannabe77)", url: "https://m.cafe.naver.com/ca-fe/web/cafes/wannabe77/articles/8795" },
+          { name: "드레아고 (Dreago)", url: "https://dreago.kr/main.html" }
         ]
       }
     ];
 
-    let currentData = JSON.parse(localStorage.getItem('my_hub_data')) || defaultData;
+    const STORAGE_KEY = 'my_hub_data_v2';
+    let currentData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || initialTabsData;
     let isEditMode = false;
 
     function saveAndRender() {
-      localStorage.setItem('my_hub_data', JSON.stringify(currentData));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
       renderGrid();
     }
 
@@ -219,7 +290,7 @@
         let listHtml = cat.items.map((item, itemIdx) => `
           <li class="link-item">
             <a href="${item.url}" target="_blank" rel="noopener">
-              <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.75rem; color:var(--text-muted);"></i>
+              <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.72rem; color:var(--text-muted);"></i>
               ${item.name}
             </a>
             <i class="fa-solid fa-trash del-btn" onclick="deleteLink(${catIdx}, ${itemIdx})"></i>
@@ -227,10 +298,16 @@
         `).join('');
 
         card.innerHTML = `
-          <div class="card-header">
-            <div class="card-title">${cat.category}</div>
+          <div>
+            <div class="card-header">
+              <div class="card-title">
+                <i class="fa-solid ${cat.icon || 'fa-folder'}"></i>
+                ${cat.category}
+              </div>
+              <span class="badge">${cat.items.length}</span>
+            </div>
+            <ul class="link-list">${listHtml}</ul>
           </div>
-          <ul class="link-list">${listHtml}</ul>
           <form class="add-form" onsubmit="addLink(event, ${catIdx})">
             <input type="text" class="name" placeholder="이름" required>
             <input type="url" class="url" placeholder="https://..." required>
@@ -250,6 +327,7 @@
         url = 'https://' + url;
       }
       currentData[catIdx].items.push({ name, url });
+      form.reset();
       saveAndRender();
     }
 
@@ -264,7 +342,6 @@
       document.getElementById('editBtn').classList.toggle('active', isEditMode);
     }
 
-    // 기기 간 동기화용 JSON 백업/복원
     function exportData() {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData, null, 2));
       const downloadAnchor = document.createElement('a');
@@ -293,6 +370,13 @@
         reader.readAsText(file);
       };
       input.click();
+    }
+
+    function resetToInitial() {
+      if (confirm('모든 링크를 45개 기본 목록 상태로 초기화하시겠습니까?')) {
+        currentData = JSON.parse(JSON.stringify(initialTabsData));
+        saveAndRender();
+      }
     }
 
     function updateTime() {
