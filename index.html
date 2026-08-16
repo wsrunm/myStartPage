@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Personal Hub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase SDK (v9 호환 모드) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <!-- SortableJS (드래그 앤 드롭 정렬) -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
   <style>
     :root {
       --bg: #0d1117;
@@ -13,6 +19,7 @@
       --card-border: rgba(255, 255, 255, 0.08);
       --accent: #58a6ff;
       --danger: #f85149;
+      --success: #3fb950;
       --text: #c9d1d9;
       --text-bright: #ffffff;
       --text-muted: #8b949e;
@@ -32,6 +39,9 @@
     .header { text-align: center; }
     .clock { font-size: 2.6rem; font-weight: 700; color: var(--text-bright); }
     .date { color: var(--text-muted); font-size: 0.9rem; margin-top: 2px; }
+    .sync-status { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 0.4rem; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+    .sync-dot.synced { background: var(--success); }
 
     /* Search & Controls */
     .search-box {
@@ -84,7 +94,7 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      transition: border-color 0.2s, transform 0.2s, opacity 0.2s;
+      transition: border-color 0.2s, transform 0.2s;
       user-select: none;
     }
     .card-header {
@@ -110,7 +120,6 @@
       padding-right: 0.2rem;
     }
     body.edit-mode .drag-handle { display: inline-block; }
-    .drag-handle:active { cursor: grabbing; }
 
     .card-title {
       font-size: 0.9rem;
@@ -157,26 +166,14 @@
       display: flex;
       flex-direction: column;
       gap: 0.35rem;
-      max-height: 290px; /* 항목 약 7개 높이에 맞춤 */
+      max-height: 290px;
       overflow-y: auto;
       padding-right: 4px;
     }
-
-    /* 커스텀 스크롤바 */
-    .link-list::-webkit-scrollbar {
-      width: 5px;
-    }
-    .link-list::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.02);
-      border-radius: 4px;
-    }
-    .link-list::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 4px;
-    }
-    .link-list::-webkit-scrollbar-thumb:hover {
-      background: var(--accent);
-    }
+    .link-list::-webkit-scrollbar { width: 5px; }
+    .link-list::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 4px; }
+    .link-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+    .link-list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
     .link-item {
       display: flex;
@@ -213,14 +210,8 @@
     body.edit-mode .del-btn { display: inline-block; }
 
     /* Drag & Drop Visual State */
-    .sortable-ghost {
-      opacity: 0.35;
-      border: 2px dashed var(--accent) !important;
-      transform: scale(0.98);
-    }
-    .sortable-chosen {
-      background: rgba(88, 166, 255, 0.08) !important;
-    }
+    .sortable-ghost { opacity: 0.35; border: 2px dashed var(--accent) !important; transform: scale(0.98); }
+    .sortable-chosen { background: rgba(88, 166, 255, 0.08) !important; }
 
     /* Add Forms */
     .add-form {
@@ -255,6 +246,10 @@
     <div class="header">
       <div class="clock" id="clock">00:00</div>
       <div class="date" id="date">로딩 중...</div>
+      <div class="sync-status">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncText">클라우드 연결 확인 중...</span>
+      </div>
     </div>
 
     <form class="search-box" action="https://www.google.com/search" method="get" target="_blank">
@@ -274,6 +269,33 @@
   </div>
 
   <script>
+    // ==========================================
+    // 1. Firebase 설정 (본인의 Firebase 키로 변경)
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyA0NuHxjYLwEjq91o4m3FeuLoX4ukCT2EU",
+      authDomain: "my-start-page-db.firebaseapp.com",
+      projectId: "my-start-page-db",
+      storageBucket: "my-start-page-db.firebasestorage.app",
+      messagingSenderId: "575150737925",
+      appId: "1:575150737925:web:f1fe231de3b343746aea6c"
+    };
+
+    let db = null;
+    let isCloudConnected = false;
+
+    // Firebase 초기화
+    try {
+      if (firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("여기에")) {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        isCloudConnected = true;
+      }
+    } catch (e) {
+      console.warn("Firebase 초기화 오류 (로컬 모드로 작동):", e);
+    }
+
+    // 기본 템플릿 데이터 (최초 1회 클라우드 동기화용)
     const initialTabsData = [
       {
         category: "증권사 리서치 & 리포트",
@@ -370,14 +392,59 @@
       }
     ];
 
-    const STORAGE_KEY = 'my_hub_data_v7';
+    const STORAGE_KEY = 'my_hub_data_cloud';
     let currentData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || initialTabsData;
     let isEditMode = false;
     let sortableInstance = null;
 
+    // 클라우드 저장 및 로컬 백업 동시 수행
     function saveAndRender() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
       renderGrid();
+
+      if (isCloudConnected && db) {
+        setSyncStatus("동기화 중...", false);
+        db.collection("hub").doc("userData").set({
+          data: currentData,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+          setSyncStatus("클라우드 동기화 완료", true);
+        }).catch((err) => {
+          console.error("클라우드 저장 실패:", err);
+          setSyncStatus("동기화 실패 (로컬에만 저장됨)", false);
+        });
+      }
+    }
+
+    function setSyncStatus(text, isSynced) {
+      document.getElementById('syncText').textContent = text;
+      document.getElementById('syncDot').classList.toggle('synced', isSynced);
+    }
+
+    // 클라우드 데이터 실시간 리스너 구독
+    function initCloudSync() {
+      if (!isCloudConnected || !db) {
+        setSyncStatus("로컬 모드 (클라우드 미연동)", false);
+        renderGrid();
+        return;
+      }
+
+      setSyncStatus("클라우드 데이터 불러오는 중...", false);
+      db.collection("hub").doc("userData").onSnapshot((doc) => {
+        if (doc.exists && doc.data().data) {
+          currentData = doc.data().data;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
+          setSyncStatus("클라우드 실시간 연결됨", true);
+          renderGrid();
+        } else {
+          // Firestore 문서가 비어있으면 초기값으로 최초 저장
+          saveAndRender();
+        }
+      }, (err) => {
+        console.error("Firestore 구독 오류:", err);
+        setSyncStatus("클라우드 연결 오류", false);
+        renderGrid();
+      });
     }
 
     function renderGrid() {
@@ -446,8 +513,7 @@
         onEnd: function (evt) {
           const movedItem = currentData.splice(evt.oldIndex, 1)[0];
           currentData.splice(evt.newIndex, 0, movedItem);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
-          renderGrid();
+          saveAndRender();
         }
       });
     }
@@ -539,7 +605,7 @@
     }
 
     function resetToInitial() {
-      if (confirm('모든 링크와 그룹을 리서치 포함 기본 세팅으로 초기화하시겠습니까?')) {
+      if (confirm('모든 링크와 그룹을 기본 세팅으로 초기화하시겠습니까? (클라우드 데이터도 초기화됩니다)')) {
         currentData = JSON.parse(JSON.stringify(initialTabsData));
         saveAndRender();
       }
@@ -552,7 +618,9 @@
     }
     setInterval(updateTime, 1000);
     updateTime();
-    renderGrid();
+
+    // 초기 동기화 시작
+    initCloudSync();
   </script>
 </body>
 </html>
