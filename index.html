@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Personal Hub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- 모바일 터치 드래그 앤 드롭 지원 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
   <style>
     :root {
@@ -152,18 +151,33 @@
     body.edit-mode .edit-cat-btn,
     body.edit-mode .del-cat-btn { display: inline-block; }
 
-    /* Drag & Drop Visual State */
-    .sortable-ghost {
-      opacity: 0.35;
-      border: 2px dashed var(--accent) !important;
-      transform: scale(0.98);
-    }
-    .sortable-chosen {
-      background: rgba(88, 166, 255, 0.08) !important;
+    /* 7개 기준 스크롤 적용 리스트 */
+    .link-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      max-height: 290px; /* 항목 약 7개 높이에 맞춤 */
+      overflow-y: auto;
+      padding-right: 4px;
     }
 
-    /* Link Items */
-    .link-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
+    /* 커스텀 스크롤바 */
+    .link-list::-webkit-scrollbar {
+      width: 5px;
+    }
+    .link-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
+    }
+    .link-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+    .link-list::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
     .link-item {
       display: flex;
       align-items: center;
@@ -172,6 +186,7 @@
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.02);
       transition: all 0.2s;
+      flex-shrink: 0;
     }
     .link-item:hover { background: rgba(255, 255, 255, 0.06); }
     .link-item a {
@@ -196,6 +211,16 @@
     }
     .del-btn:hover { color: var(--danger); }
     body.edit-mode .del-btn { display: inline-block; }
+
+    /* Drag & Drop Visual State */
+    .sortable-ghost {
+      opacity: 0.35;
+      border: 2px dashed var(--accent) !important;
+      transform: scale(0.98);
+    }
+    .sortable-chosen {
+      background: rgba(88, 166, 255, 0.08) !important;
+    }
 
     /* Add Forms */
     .add-form {
@@ -345,7 +370,7 @@
       }
     ];
 
-    const STORAGE_KEY = 'my_hub_data_v6';
+    const STORAGE_KEY = 'my_hub_data_v7';
     let currentData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || initialTabsData;
     let isEditMode = false;
     let sortableInstance = null;
@@ -404,7 +429,6 @@
       initSortable();
     }
 
-    /* SortableJS 드래그 앤 드롭 초기화 */
     function initSortable() {
       const container = document.getElementById('categoryGrid');
       if (sortableInstance) {
@@ -413,11 +437,11 @@
 
       sortableInstance = new Sortable(container, {
         animation: 200,
-        handle: '.card-header', /* 카드 상단 헤더 영역을 잡고 드래그 */
+        handle: '.card-header',
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
-        disabled: !isEditMode, /* 편집 모드일 때만 드래그 활성화 */
-        delay: 150, /* 모바일 스크롤과 충돌 방지를 위해 150ms 롱터치 후 드래그 시작 */
+        disabled: !isEditMode,
+        delay: 150,
         delayOnTouchOnly: true,
         onEnd: function (evt) {
           const movedItem = currentData.splice(evt.oldIndex, 1)[0];
@@ -428,7 +452,6 @@
       });
     }
 
-    /* 그룹(카테고리) 관련 함수 */
     function addCategory() {
       const catName = prompt('새로 추가할 그룹(카테고리) 이름을 입력하세요:');
       if (catName && catName.trim() !== '') {
@@ -458,7 +481,6 @@
       }
     }
 
-    /* 링크 관련 함수 */
     function addLink(e, catIdx) {
       e.preventDefault();
       const form = e.target;
@@ -477,7 +499,6 @@
       saveAndRender();
     }
 
-    /* 모드 전환 및 백업/복원 */
     function toggleEditMode() {
       isEditMode = !isEditMode;
       document.body.classList.toggle('edit-mode', isEditMode);
@@ -524,7 +545,6 @@
       }
     }
 
-    /* 시계 */
     function updateTime() {
       const now = new Date();
       document.getElementById('clock').textContent = now.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' });
