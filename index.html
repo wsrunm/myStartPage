@@ -6,10 +6,10 @@
   <title>Personal Hub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- Firebase SDK (v9 호환 모드) -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <!-- SortableJS (드래그 앤 드롭 정렬) -->
+  <!-- SortableJS (드래그 앤 드롭) -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
   <style>
@@ -20,6 +20,7 @@
       --accent: #58a6ff;
       --danger: #f85149;
       --success: #3fb950;
+      --star: #e3b341;
       --text: #c9d1d9;
       --text-bright: #ffffff;
       --text-muted: #8b949e;
@@ -78,6 +79,17 @@
     }
     .btn:hover, .btn.active { color: var(--accent); border-color: var(--accent); }
     .btn-primary { color: var(--accent); border-color: rgba(88, 166, 255, 0.4); }
+
+    /* Pinned Favorites Card */
+    .pinned-section { width: 100%; }
+    .card-pinned {
+      background: rgba(30, 38, 49, 0.85);
+      border: 1px solid rgba(227, 179, 65, 0.35);
+      border-radius: 16px;
+      padding: 1.25rem;
+      backdrop-filter: blur(12px);
+    }
+    .card-pinned .card-title { color: var(--star); }
 
     /* Grid & Cards */
     .grid {
@@ -145,6 +157,10 @@
       padding: 0.15rem 0.45rem;
       border-radius: 10px;
     }
+    .badge-star {
+      background: rgba(227, 179, 65, 0.15);
+      color: var(--star);
+    }
     .edit-cat-btn, .del-cat-btn {
       cursor: pointer;
       font-size: 0.85rem;
@@ -160,7 +176,7 @@
     body.edit-mode .edit-cat-btn,
     body.edit-mode .del-cat-btn { display: inline-block; }
 
-    /* 7개 기준 스크롤 적용 리스트 */
+    /* 7개 기준 스크롤 리스트 */
     .link-list {
       list-style: none;
       display: flex;
@@ -184,6 +200,7 @@
       background: rgba(255, 255, 255, 0.02);
       transition: all 0.2s;
       flex-shrink: 0;
+      gap: 0.4rem;
     }
     .link-item:hover { background: rgba(255, 255, 255, 0.06); }
     .link-item a {
@@ -199,14 +216,27 @@
       text-overflow: ellipsis;
     }
     .link-item a:hover { color: var(--text-bright); }
-    .del-btn {
+    
+    .item-actions { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+    .star-btn {
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .star-btn.active { color: var(--star); }
+    .star-btn:hover { transform: scale(1.15); }
+
+    .edit-link-btn, .del-btn {
       color: var(--text-muted);
       cursor: pointer;
       font-size: 0.8rem;
-      padding: 0.2rem 0.4rem;
+      padding: 0.1rem 0.2rem;
       display: none;
     }
+    .edit-link-btn:hover { color: var(--accent); }
     .del-btn:hover { color: var(--danger); }
+    body.edit-mode .edit-link-btn,
     body.edit-mode .del-btn { display: inline-block; }
 
     /* Drag & Drop Visual State */
@@ -265,6 +295,10 @@
       <button class="btn" onclick="resetToInitial()"><i class="fa-solid fa-rotate-left"></i> 초기화</button>
     </div>
 
+    <!-- 상단 고정: 즐겨찾기 / 자주 찾는 사이트 영역 -->
+    <div class="pinned-section" id="pinnedSection"></div>
+
+    <!-- 일반 그룹 그리드 -->
     <div class="grid" id="categoryGrid"></div>
   </div>
 
@@ -284,7 +318,6 @@
     let db = null;
     let isCloudConnected = false;
 
-    // Firebase 초기화
     try {
       if (firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("여기에")) {
         firebase.initializeApp(firebaseConfig);
@@ -295,16 +328,15 @@
       console.warn("Firebase 초기화 오류 (로컬 모드로 작동):", e);
     }
 
-    // 기본 템플릿 데이터 (최초 1회 클라우드 동기화용)
     const initialTabsData = [
       {
         category: "증권사 리서치 & 리포트",
         icon: "fa-file-invoice-dollar",
         items: [
-          { name: "네이버페이 증권 리서치 (메인)", url: "https://finance.naver.com/research/" },
+          { name: "네이버페이 증권 리서치 (메인)", url: "https://finance.naver.com/research/", favorite: true },
           { name: "네이버 증권: 기업분석 리포트", url: "https://finance.naver.com/research/company_list.naver" },
           { name: "네이버 증권: 산업분석 리포트", url: "https://finance.naver.com/research/industry_list.naver" },
-          { name: "한경 컨센서스 (전 증권사 통합)", url: "https://consensus.hankyung.com/" },
+          { name: "한경 컨센서스 (전 증권사 통합)", url: "https://consensus.hankyung.com/", favorite: true },
           { name: "한경 컨센서스: 기업 리포트", url: "https://consensus.hankyung.com/analysis/analysis_list?report_type=CO" },
           { name: "팍스넷 리서치/투자전략", url: "http://www.paxnet.co.kr/stock/report/report" },
           { name: "하나증권 리서치센터", url: "https://www.hanaw.com/main/research/research/list.cmd" },
@@ -319,8 +351,8 @@
         category: "마켓 & 투자 분석",
         icon: "fa-chart-line",
         items: [
-          { name: "Google Finance (VOO/SOXL/QQQM/TQQQ)", url: "https://www.google.com/finance/beta/quote/VOO:NYSEARCA?comparison=SOXL%3ANYSEARCA%2CQQQM%3ANASDAQ%2CTQQQ%3ANASDAQ&type=line&window=6M" },
-          { name: "Companies Market Cap (시총 순위)", url: "https://companiesmarketcap.com/" },
+          { name: "Google Finance (VOO/SOXL/QQQM/TQQQ)", url: "https://www.google.com/finance/beta/quote/VOO:NYSEARCA?comparison=SOXL%3ANYSEARCA%2CQQQM%3ANASDAQ%2CTQQQ%3ANASDAQ&type=line&window=6M", favorite: true },
+          { name: "Companies Market Cap (시총 순위)", url: "https://companiesmarketcap.com/", favorite: true },
           { name: "Kospilab Insights", url: "https://kospilab.com/insights" },
           { name: "Whale Insight (국민연금 포트폴리오)", url: "https://whale-insight.com/nps_kr" },
           { name: "App Economy Insights", url: "https://www.appeconomyinsights.com/" },
@@ -338,7 +370,7 @@
         category: "개발 & 테크 도구",
         icon: "fa-code",
         items: [
-          { name: "GitHub Actions: krx-auto-brief 실행 내역", url: "https://github.com/wsrunm/krx-auto-brief/actions/runs/24769240899/job/72471118506" },
+          { name: "GitHub Actions: krx-auto-brief 실행 내역", url: "https://github.com/wsrunm/krx-auto-brief/actions/runs/24769240899/job/72471118506", favorite: true },
           { name: "인프런: 주식 자동화 바이브코딩 강의", url: "https://www.inflearn.com/course/stock-vibe-coding-ev?cid=341084" },
           { name: "인공지능산업융합사업단 공지사항", url: "https://aikorea.go.kr/web/board/brdList.do?menu_cd=000014" },
           { name: "HMX 반저소음 라벤더 스위치 검색", url: "https://www.google.com/search?q=hmx+%EB%B0%98%EC%A0%80%EC%86%8C%EC%9D%8C+%EB%9D%BC%EB%B2%A4%EB%8D%94" },
@@ -392,15 +424,15 @@
       }
     ];
 
-    const STORAGE_KEY = 'my_hub_data_cloud';
+    const STORAGE_KEY = 'my_hub_data_v8';
     let currentData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || initialTabsData;
     let isEditMode = false;
-    let sortableInstance = null;
+    let cardSortableInstance = null;
+    let listSortableInstances = [];
 
-    // 클라우드 저장 및 로컬 백업 동시 수행
     function saveAndRender() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
-      renderGrid();
+      renderAll();
 
       if (isCloudConnected && db) {
         setSyncStatus("동기화 중...", false);
@@ -408,7 +440,7 @@
           data: currentData,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
-          setSyncStatus("클라우드 동기화 완료", true);
+          setSyncStatus("클라우드 실시간 연결됨", true);
         }).catch((err) => {
           console.error("클라우드 저장 실패:", err);
           setSyncStatus("동기화 실패 (로컬에만 저장됨)", false);
@@ -421,11 +453,10 @@
       document.getElementById('syncDot').classList.toggle('synced', isSynced);
     }
 
-    // 클라우드 데이터 실시간 리스너 구독
     function initCloudSync() {
       if (!isCloudConnected || !db) {
         setSyncStatus("로컬 모드 (클라우드 미연동)", false);
-        renderGrid();
+        renderAll();
         return;
       }
 
@@ -435,18 +466,68 @@
           currentData = doc.data().data;
           localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
           setSyncStatus("클라우드 실시간 연결됨", true);
-          renderGrid();
+          renderAll();
         } else {
-          // Firestore 문서가 비어있으면 초기값으로 최초 저장
           saveAndRender();
         }
       }, (err) => {
         console.error("Firestore 구독 오류:", err);
         setSyncStatus("클라우드 연결 오류", false);
-        renderGrid();
+        renderAll();
       });
     }
 
+    function renderAll() {
+      renderPinnedSection();
+      renderGrid();
+    }
+
+    // 1. 상단 고정 즐겨찾기 렌더링
+    function renderPinnedSection() {
+      const pinnedContainer = document.getElementById('pinnedSection');
+      
+      // 즐겨찾기된 링크들 수집
+      let favorites = [];
+      currentData.forEach((cat, catIdx) => {
+        cat.items.forEach((item, itemIdx) => {
+          if (item.favorite) {
+            favorites.push({ ...item, catIdx, itemIdx, catName: cat.category });
+          }
+        });
+      });
+
+      if (favorites.length === 0) {
+        pinnedContainer.innerHTML = '';
+        return;
+      }
+
+      let favListHtml = favorites.map(fav => `
+        <li class="link-item">
+          <a href="${fav.url}" target="_blank" rel="noopener">
+            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.72rem; color:var(--star);"></i>
+            <span>${fav.name}</span>
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:auto; padding-right:0.5rem;">[${fav.catName}]</span>
+          </a>
+          <div class="item-actions">
+            <i class="fa-solid fa-star star-btn active" title="즐겨찾기 해제" onclick="toggleFavorite(${fav.catIdx}, ${fav.itemIdx})"></i>
+          </div>
+        </li>
+      `).join('');
+
+      pinnedContainer.innerHTML = `
+        <div class="card card-pinned">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fa-solid fa-star"></i> 자주 찾는 사이트 (즐겨찾기)
+            </div>
+            <span class="badge badge-star">${favorites.length}</span>
+          </div>
+          <ul class="link-list">${favListHtml}</ul>
+        </div>
+      `;
+    }
+
+    // 2. 일반 그룹 그리드 렌더링
     function renderGrid() {
       const container = document.getElementById('categoryGrid');
       container.innerHTML = '';
@@ -456,21 +537,30 @@
         card.className = 'card';
         card.setAttribute('data-idx', catIdx);
 
-        let listHtml = cat.items.map((item, itemIdx) => `
-          <li class="link-item">
-            <a href="${item.url}" target="_blank" rel="noopener">
-              <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.72rem; color:var(--text-muted);"></i>
-              ${item.name}
-            </a>
-            <i class="fa-solid fa-trash del-btn" title="링크 삭제" onclick="deleteLink(${catIdx}, ${itemIdx})"></i>
-          </li>
-        `).join('');
+        let listHtml = cat.items.map((item, itemIdx) => {
+          const isFav = !!item.favorite;
+          return `
+            <li class="link-item" data-item-idx="${itemIdx}">
+              <a href="${item.url}" target="_blank" rel="noopener">
+                <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.72rem; color:var(--text-muted);"></i>
+                ${item.name}
+              </a>
+              <div class="item-actions">
+                <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-star star-btn ${isFav ? 'active' : ''}" 
+                   title="${isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}" 
+                   onclick="toggleFavorite(${catIdx}, ${itemIdx})"></i>
+                <i class="fa-solid fa-pen edit-link-btn" title="링크 수정" onclick="editLink(${catIdx}, ${itemIdx})"></i>
+                <i class="fa-solid fa-trash del-btn" title="링크 삭제" onclick="deleteLink(${catIdx}, ${itemIdx})"></i>
+              </div>
+            </li>
+          `;
+        }).join('');
 
         card.innerHTML = `
           <div>
             <div class="card-header">
               <div class="card-title-wrap">
-                <i class="fa-solid fa-grip-vertical drag-handle" title="드래그하여 이동"></i>
+                <i class="fa-solid fa-grip-vertical drag-handle" title="드래그하여 그룹 이동"></i>
                 <div class="card-title">
                   <i class="fa-solid ${cat.icon || 'fa-folder'}"></i>
                   <span id="cat-title-${catIdx}">${cat.category}</span>
@@ -482,7 +572,7 @@
                 <i class="fa-solid fa-trash del-cat-btn" title="그룹 전체 삭제" onclick="deleteCategory(${catIdx})"></i>
               </div>
             </div>
-            <ul class="link-list">${listHtml}</ul>
+            <ul class="link-list link-sortable" data-cat-idx="${catIdx}">${listHtml}</ul>
           </div>
           <form class="add-form" onsubmit="addLink(event, ${catIdx})">
             <input type="text" class="name" placeholder="이름" required>
@@ -493,16 +583,16 @@
         container.appendChild(card);
       });
 
-      initSortable();
+      initSortables();
     }
 
-    function initSortable() {
+    // SortableJS: 카드 순서 및 링크 순서 드래그 앤 드롭 초기화
+    function initSortables() {
       const container = document.getElementById('categoryGrid');
-      if (sortableInstance) {
-        sortableInstance.destroy();
-      }
-
-      sortableInstance = new Sortable(container, {
+      
+      // 1) 카드(그룹) 순서 이동
+      if (cardSortableInstance) cardSortableInstance.destroy();
+      cardSortableInstance = new Sortable(container, {
         animation: 200,
         handle: '.card-header',
         ghostClass: 'sortable-ghost',
@@ -511,13 +601,83 @@
         delay: 150,
         delayOnTouchOnly: true,
         onEnd: function (evt) {
-          const movedItem = currentData.splice(evt.oldIndex, 1)[0];
-          currentData.splice(evt.newIndex, 0, movedItem);
+          const moved = currentData.splice(evt.oldIndex, 1)[0];
+          currentData.splice(evt.newIndex, 0, moved);
           saveAndRender();
         }
       });
+
+      // 2) 그룹 내 링크 순서 이동
+      listSortableInstances.forEach(inst => inst.destroy());
+      listSortableInstances = [];
+
+      document.querySelectorAll('.link-sortable').forEach(listEl => {
+        const catIdx = parseInt(listEl.getAttribute('data-cat-idx'));
+        const inst = new Sortable(listEl, {
+          animation: 150,
+          ghostClass: 'sortable-ghost',
+          chosenClass: 'sortable-chosen',
+          disabled: !isEditMode,
+          delay: 150,
+          delayOnTouchOnly: true,
+          onEnd: function (evt) {
+            const movedItem = currentData[catIdx].items.splice(evt.oldIndex, 1)[0];
+            currentData[catIdx].items.splice(evt.newIndex, 0, movedItem);
+            saveAndRender();
+          }
+        });
+        listSortableInstances.push(inst);
+      });
     }
 
+    /* 즐겨찾기 토글 */
+    function toggleFavorite(catIdx, itemIdx) {
+      if (!currentData[catIdx] || !currentData[catIdx].items[itemIdx]) return;
+      currentData[catIdx].items[itemIdx].favorite = !currentData[catIdx].items[itemIdx].favorite;
+      saveAndRender();
+    }
+
+    /* 링크 수정 */
+    function editLink(catIdx, itemIdx) {
+      const item = currentData[catIdx].items[itemIdx];
+      const newName = prompt('수정할 웹사이트 이름을 입력하세요:', item.name);
+      if (newName === null) return;
+      
+      let newUrl = prompt('수정할 URL을 입력하세요:', item.url);
+      if (newUrl === null) return;
+      newUrl = newUrl.trim();
+      if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
+        newUrl = 'https://' + newUrl;
+      }
+
+      if (newName.trim() !== '') {
+        currentData[catIdx].items[itemIdx].name = newName.trim();
+        currentData[catIdx].items[itemIdx].url = newUrl;
+        saveAndRender();
+      }
+    }
+
+    /* 링크 추가 */
+    function addLink(e, catIdx) {
+      e.preventDefault();
+      const form = e.target;
+      const name = form.querySelector('.name').value.trim();
+      let url = form.querySelector('.url').value.trim();
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+      }
+      currentData[catIdx].items.push({ name, url, favorite: false });
+      form.reset();
+      saveAndRender();
+    }
+
+    /* 링크 삭제 */
+    function deleteLink(catIdx, itemIdx) {
+      currentData[catIdx].items.splice(itemIdx, 1);
+      saveAndRender();
+    }
+
+    /* 그룹 관리 */
     function addCategory() {
       const catName = prompt('새로 추가할 그룹(카테고리) 이름을 입력하세요:');
       if (catName && catName.trim() !== '') {
@@ -547,33 +707,21 @@
       }
     }
 
-    function addLink(e, catIdx) {
-      e.preventDefault();
-      const form = e.target;
-      const name = form.querySelector('.name').value.trim();
-      let url = form.querySelector('.url').value.trim();
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-      }
-      currentData[catIdx].items.push({ name, url });
-      form.reset();
-      saveAndRender();
-    }
-
-    function deleteLink(catIdx, itemIdx) {
-      currentData[catIdx].items.splice(itemIdx, 1);
-      saveAndRender();
-    }
-
+    /* 편집 모드 토글 */
     function toggleEditMode() {
       isEditMode = !isEditMode;
       document.body.classList.toggle('edit-mode', isEditMode);
       document.getElementById('editBtn').classList.toggle('active', isEditMode);
-      if (sortableInstance) {
-        sortableInstance.option('disabled', !isEditMode);
+      
+      if (cardSortableInstance) {
+        cardSortableInstance.option('disabled', !isEditMode);
       }
+      listSortableInstances.forEach(inst => {
+        inst.option('disabled', !isEditMode);
+      });
     }
 
+    /* 백업/복원 */
     function exportData() {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData, null, 2));
       const downloadAnchor = document.createElement('a');
@@ -611,6 +759,7 @@
       }
     }
 
+    /* 시계 */
     function updateTime() {
       const now = new Date();
       document.getElementById('clock').textContent = now.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' });
